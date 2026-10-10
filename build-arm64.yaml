@@ -1,0 +1,33 @@
+name: Build Windows ARM64
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-pc-windows-msvc
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@latest
+
+      # 关键步骤：调用云端 Windows 服务器上的 MSVC 交叉编译工具链
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64_arm64
+
+      - name: Build swyh-rs for ARM64
+        run: cargo build --release --target aarch64-pc-windows-msvc
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: swyh-rs-windows-arm64
+          path: target/aarch64-pc-windows-msvc/release/swyh-rs.exe
