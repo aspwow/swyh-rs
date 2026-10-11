@@ -27,10 +27,11 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        # ✅ 新增 macos-latest
+        os: [windows-latest, ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Linux deps
         if: runner.os == 'Linux'
         run: |
@@ -38,15 +39,21 @@ jobs:
           sudo apt-get install -y lib{pango1.0,x11,xext,xft,xinerama}-dev \
               lib{xcursor,xrender,xfixes,png,gl1-mesa,rust-alsa-sys}-dev \
               libglu1-mesa-dev libdbus-1-dev
-              
+
+      # ✅ 新增：macOS 依赖（确保 cmake 和 ninja 可用）
+      - name: Install macOS deps
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake ninja
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: clippy
-          
+
       - uses: Swatinem/rust-cache@v2
-      
+
       # --- 原有的 CI 检查步骤 (Debug 模式) ---
       - name: Build (GUI)
         run: cargo build --bin swyh-rs
@@ -61,57 +68,60 @@ jobs:
       - name: Test (CLI)
         run: cargo test --features cli --no-default-features
 
-      # --- 新增：编译 Release 版本并上传 ---
+      # ✅ 新增：编译 Release 版本（供下载）
       - name: Build Release (GUI & CLI)
         run: |
           cargo build --release --bin swyh-rs
           cargo build --release --bin swyh-rs-cli --features cli --no-default-features
 
+      # ✅ 新增：上传构建产物
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          # 使用 matrix.os 动态命名，例如：swyh-rs-windows-latest-binaries
           name: swyh-rs-${{ matrix.os }}-binaries
-          # 兼容 Windows (.exe) 和 Linux (无后缀) 的文件名
+          # 兼容 Windows (.exe) 和 Linux/macOS (无后缀)
           path: |
             target/release/swyh-rs.exe
             target/release/swyh-rs-cli.exe
             target/release/swyh-rs
             target/release/swyh-rs-cli
 
+  # ==========================================
+  # 新增任务：编译 Windows ARM64 原生版本
+  # ==========================================
   build-windows-arm64:
     name: Build Windows ARM64 (Cross-Compile)
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      
+
       # 1. 安装 Ninja
       - name: Install Ninja
         run: choco install ninja -y
-        
-      # 2. 关键步骤：配置 MSVC 交叉编译环境 (x64 -> ARM64)
+
+      # 2. 配置 MSVC 交叉编译环境 (x64 -> ARM64)
       - name: Setup MSVC cross-compiler (x64 -> ARM64)
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64_arm64
-          
-      # 3. 安装 Rust 工具链，并明确指定添加 ARM64 目标
+
+      # 3. 安装 Rust 工具链并添加 ARM64 目标
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           targets: aarch64-pc-windows-msvc
-          
+
       # 4. 编译带 GUI 的主程序 (Release 模式)
       - name: Build GUI (ARM64)
         run: cargo build --release --target aarch64-pc-windows-msvc --bin swyh-rs
-        
+
       # 5. 编译纯命令行的 CLI 版本
       - name: Build CLI (ARM64)
         run: cargo build --release --target aarch64-pc-windows-msvc --bin swyh-rs-cli --features cli --no-default-features
-        
-      # 6. 将编译好的 exe 打包上传
+
+      # 6. 上传 ARM64 产物
       - name: Upload ARM64 Artifacts
         uses: actions/upload-artifact@v4
         with:
